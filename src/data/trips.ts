@@ -1,0 +1,138 @@
+import { TripDay } from '../types';
+
+export const INITIAL_TRIP_DAYS: TripDay[] = [
+  {
+    dayNumber: 1,
+    title: 'Downtown & Historic Heritage',
+    stops: [
+      {
+        id: 'stop-1-1',
+        time: '9:00 AM',
+        title: 'Burj Khalifa',
+        subtitle: 'Sightseeing · 2 h',
+        type: 'sightseeing',
+      },
+      {
+        id: 'stop-1-2',
+        time: '12:11 PM',
+        title: 'Dhuhr prayer',
+        subtitle: 'Jumeirah Mosque · 350 m',
+        type: 'prayer',
+        distance: '350 m',
+      },
+      {
+        id: 'stop-1-3',
+        time: '1:00 PM',
+        title: 'Halal lunch',
+        subtitle: 'Near Dubai Mall · 12 min walk',
+        type: 'food',
+        distance: '12 min walk',
+      },
+      {
+        id: 'stop-1-4',
+        time: '3:34 PM',
+        title: 'Asr prayer',
+        subtitle: 'Al Satwa Mosque · 800 m',
+        type: 'prayer',
+        distance: '800 m',
+      },
+      {
+        id: 'stop-1-5',
+        time: '4:30 PM',
+        title: 'Dubai Creek walk',
+        subtitle: 'Free time · 1 h 30',
+        type: 'freetime',
+      },
+    ],
+  },
+  {
+    dayNumber: 2,
+    title: 'Cultural Quarters & Souks',
+    stops: [
+      {
+        id: 'stop-2-1',
+        time: '9:30 AM',
+        title: 'Al Fahidi Historical Neighbourhood',
+        subtitle: 'Heritage walking tour · 2 h',
+        type: 'sightseeing',
+      },
+      {
+        id: 'stop-2-2',
+        time: '12:11 PM',
+        title: 'Dhuhr prayer',
+        subtitle: 'Grand Mosque Bur Dubai · 400 m',
+        type: 'prayer',
+        distance: '400 m',
+      },
+      {
+        id: 'stop-2-3',
+        time: '1:15 PM',
+        title: 'Halal Emirati Lunch',
+        subtitle: 'Arabian Tea House · Courtyard feast',
+        type: 'food',
+      },
+      {
+        id: 'stop-2-4',
+        time: '3:34 PM',
+        title: 'Asr prayer',
+        subtitle: 'Al Farooq Omar Bin Al Khattab Mosque',
+        type: 'prayer',
+      },
+      {
+        id: 'stop-2-5',
+        time: '5:00 PM',
+        title: 'Spice & Gold Souk Abra Ride',
+        subtitle: 'Sunset boat crossing · 1 h',
+        type: 'sightseeing',
+      },
+      {
+        id: 'stop-2-6',
+        time: '6:12 PM',
+        title: 'Maghrib prayer',
+        subtitle: 'Deira Waterfront Mosque',
+        type: 'prayer',
+      },
+    ],
+  },
+  {
+    dayNumber: 3,
+    title: 'Coastal Jumeirah & Marina',
+    stops: [
+      {
+        id: 'stop-3-1',
+        time: '10:00 AM',
+        title: 'Jumeirah Beach Walk & Souk Madinat',
+        subtitle: 'Sightseeing · 2 h',
+        type: 'sightseeing',
+      },
+      {
+        id: 'stop-3-2',
+        time: '12:11 PM',
+        title: 'Dhuhr prayer',
+        subtitle: 'Madinat Jumeirah Mosque · 200 m',
+        type: 'prayer',
+      },
+      {
+        id: 'stop-3-3',
+        time: '1:00 PM',
+        title: 'Halal Seafood Grill',
+        subtitle: 'Bu Qtair Coastal Kitchen',
+        type: 'food',
+      },
+      {
+        id: 'stop-3-4',
+        time: '3:34 PM',
+        title: 'Asr prayer',
+        subtitle: 'Dubai Marina Mosque',
+        type: 'prayer',
+      },
+      {
+        id: 'stop-3-5',
+        time: '6:12 PM',
+        title: 'Maghrib & Sunset Dhow Dinner',
+        subtitle: 'Halal dinner cruise · 2 h',
+        type: 'food',
+      },
+    ],
+  },
+];
