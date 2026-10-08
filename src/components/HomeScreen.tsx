@@ -288,8 +288,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </svg>
             </div>
             <div>
-              <div className="text-sm font-bold text-[#14211F]">Plan trip</div>
-              <div className="text-xs text-[#5E6E6A]">Day 1 ready</div>
+              <div className="text-sm font-bold text-[#14211F]">Trip Guide</div>
+              <div className="text-xs text-[#5E6E6A]">Live companion</div>
             </div>
           </button>
         </div>

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { LocationData, Place, TripDay } from './types';
+import { LocationData, Place, TripDay, TripGuide } from './types';
 import { DEFAULT_LOCATION, POPULAR_CITIES } from './data/cities';
 import { calculatePrayerTimes } from './utils/prayerTimes';
 import {
@@ -23,6 +23,8 @@ import {
   getOfflinePackMeta,
   getTripDays,
   saveTripDays,
+  getTripGuide,
+  saveTripGuide,
 } from './utils/storage';
 
 import { NavigationShell, TabType } from './components/NavigationShell';
@@ -82,7 +84,25 @@ export default function App() {
 
   // Offline Pack & Trip Data
   const [offlineMeta, setOfflineMeta] = useState(() => getOfflinePackMeta(location.name));
-  const [tripDays, setTripDays] = useState<TripDay[]>(() => getTripDays());
+  const [tripGuide, setTripGuide] = useState<TripGuide>(() => getTripGuide());
+  const [tripDays, setTripDays] = useState<TripDay[]>(() => tripGuide?.days || getTripDays());
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>({
+    lat: location.lat,
+    lng: location.lng,
+  });
+
+  // Track user geolocation for real-time trip distances
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        () => {},
+        { enableHighAccuracy: false, timeout: 5000 }
+      );
+    }
+  }, []);
 
   // Clock tick to refresh countdown
   const [nowTick, setNowTick] = useState<number>(Date.now());
@@ -211,13 +231,27 @@ export default function App() {
   };
 
   // Trip changes
+  const handleUpdateTripGuide = (updated: TripGuide) => {
+    setTripGuide(updated);
+    saveTripGuide(updated);
+    if (updated.days) {
+      setTripDays(updated.days);
+      saveTripDays(updated.days);
+    }
+  };
+
   const handleUpdateTripDays = (newDays: TripDay[]) => {
     setTripDays(newDays);
     saveTripDays(newDays);
+    if (tripGuide) {
+      const updatedGuide = { ...tripGuide, days: newDays, lastUpdatedAt: new Date().toISOString() };
+      setTripGuide(updatedGuide);
+      saveTripGuide(updatedGuide);
+    }
   };
 
   const handleAddPlaceToTrip = (place: Place) => {
-    const updated = tripDays.map((d) => {
+    const updatedDays = tripDays.map((d) => {
       if (d.dayNumber === 1) {
         return {
           ...d,
@@ -232,13 +266,20 @@ export default function App() {
               }`,
               type: place.category === 'mosque' ? ('prayer' as const) : ('food' as const),
               distance: place.distance,
+              lat: place.lat,
+              lng: place.lng,
+              address: place.address,
+              googleMapsUri: place.googleMapsUri,
+              halalStatus: place.halalStatus,
+              status: 'upcoming' as const,
             },
           ],
         };
       }
       return d;
     });
-    handleUpdateTripDays(updated);
+
+    handleUpdateTripDays(updatedDays);
   };
 
   // Navigation tab change resets subscreen
@@ -320,6 +361,8 @@ export default function App() {
             setSubScreen('none');
           }}
           onSelectPlace={handleAddPlaceToTrip}
+          tripGuide={tripGuide}
+          onUpdateTripGuide={handleUpdateTripGuide}
         />
       );
     }
@@ -363,9 +406,11 @@ export default function App() {
         return (
           <TripScreen
             location={location}
-            tripDays={tripDays}
+            tripGuide={tripGuide}
+            onUpdateTripGuide={handleUpdateTripGuide}
             onOpenAsk={() => setSubScreen('ask')}
-            onUpdateTripDays={handleUpdateTripDays}
+            prayerTimes={prayerTimes}
+            userCoords={userCoords}
           />
         );
 

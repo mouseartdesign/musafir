@@ -75,7 +75,6 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
   const [sensorAccuracy, setSensorAccuracy] = useState<number | null>(null);
   const [isAbsoluteSensor, setIsAbsoluteSensor] = useState<boolean>(false);
   const [showCalibrationGuide, setShowCalibrationGuide] = useState<boolean>(false);
-  const [manualHeading, setManualHeading] = useState<number>(0);
 
   // Filter ref for low-pass smoothing (exponential moving average on 2D unit vector)
   const filterRef = useRef<{
@@ -108,19 +107,57 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
     return calculateDistanceToKaaba(currentLat, currentLng);
   }, [currentLat, currentLng]);
 
-  // Effective heading (sensor or manual slider for desktop)
-  const effectiveHeading = sensorStatus === 'active' ? deviceHeading : manualHeading;
-  const effectiveContinuousHeading = sensorStatus === 'active' ? continuousHeading : manualHeading;
+  // Heading from device orientation or self-rotating to North
+  const effectiveHeading = deviceHeading;
+  const effectiveContinuousHeading = continuousHeading;
 
   // Relative Qibla angle: degrees clockwise from phone top to Kaaba
   // When effectiveHeading === qiblaAngle, relativeAngle is 0 (straight UP)
   const relativeAngle = normalizeAngle(qiblaAngle - effectiveHeading);
 
-  // Continuous relative angle for buttery smooth needle rotation without 360 wrap glitch
-  const continuousRelativeAngle = qiblaAngle - effectiveContinuousHeading;
-
   // Aligned within ±4 degrees
   const isAligned = Math.abs(relativeAngle) <= 4 || Math.abs(relativeAngle - 360) <= 4;
+
+  // Auto-rotate smoothly on its own to the North on mount if no live sensor has taken over
+  useEffect(() => {
+    let animationFrameId: number;
+    const startTime = performance.now();
+    const startAngle = 55; // Initial natural visual offset
+    const duration = 1200; // ms
+
+    const animateToNorth = (currentTime: number) => {
+      // If live sensor events have taken over, immediately cancel auto-rotation
+      if (hasReceivedDataRef.current) {
+        return;
+      }
+
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Natural dampened harmonic settling curve like a real liquid-filled compass needle
+      const damp = Math.exp(-3.5 * progress);
+      const osc = Math.cos(progress * Math.PI * 2.5);
+      const angle = startAngle * damp * osc;
+
+      setDeviceHeading(normalizeAngle(angle));
+      setContinuousHeading(angle);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(animateToNorth);
+      } else {
+        setDeviceHeading(0);
+        setContinuousHeading(0);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animateToNorth);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, []);
 
   // Haptic feedback when entering aligned state on supported mobile devices
   useEffect(() => {
@@ -240,11 +277,8 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
 
   // Set up device orientation listeners
   useEffect(() => {
-    let timeoutId: any = null;
-
     const handleOrientationAbsolute = (e: DeviceOrientationEvent) => {
       isUsingAbsoluteRef.current = true;
-      let heading: number | null = null;
 
       // iOS compass heading
       if ('webkitCompassHeading' in e && typeof (e as any).webkitCompassHeading === 'number') {
@@ -293,16 +327,9 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
     };
 
     const startListening = () => {
-      // Listen to both absolute and standard orientation events
+      // Listen continuously to both absolute and standard orientation events
       window.addEventListener('deviceorientationabsolute', handleOrientationAbsolute as any, true);
       window.addEventListener('deviceorientation', handleOrientationStandard, true);
-
-      // Timeout to detect devices without magnetometer hardware (e.g. desktop browsers)
-      timeoutId = setTimeout(() => {
-        if (!hasReceivedDataRef.current) {
-          setSensorStatus('unsupported');
-        }
-      }, 1500);
     };
 
     if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
@@ -312,12 +339,9 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
       } else {
         startListening();
       }
-    } else {
-      setSensorStatus('unsupported');
     }
 
     return () => {
-      if (timeoutId) clearTimeout(timeoutId);
       window.removeEventListener('deviceorientationabsolute', handleOrientationAbsolute as any, true);
       window.removeEventListener('deviceorientation', handleOrientationStandard, true);
     };
@@ -333,8 +357,8 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
           const handleOrientation = (e: DeviceOrientationEvent) => {
             if ('webkitCompassHeading' in e && typeof (e as any).webkitCompassHeading === 'number') {
               const accuracy = (e as any).webkitCompassAccuracy ?? null;
-              let heading = (e as any).webkitCompassHeading;
-              heading = normalizeAngle(heading + screenAngleRef.current);
+              const compassHeading: number = (e as any).webkitCompassHeading;
+              const heading = normalizeAngle(compassHeading + screenAngleRef.current);
               processOrientation(heading, true, accuracy);
             }
           };
@@ -358,20 +382,20 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
   const turnDirection = relativeAngle > 180 ? 'left' : 'right';
 
   return (
-    <div className="p-4 sm:p-5 flex flex-col items-center justify-between min-h-[calc(100vh-80px)] text-center animate-fade-in select-none">
+    <div className="w-full max-w-md mx-auto px-4 py-2 sm:px-5 sm:py-3 flex flex-col items-center justify-between min-h-[calc(100dvh-76px)] text-center animate-fade-in select-none overflow-x-hidden">
       {/* Top Heading & Location Banner */}
-      <div className="w-full text-left pt-1">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold text-[#14211F]">Qibla</h1>
+      <div className="w-full text-left pt-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-[#14211F]">Qibla</h1>
           {/* Live GPS Status Pill */}
           <button
             onClick={refreshGps}
             disabled={isGettingGps}
-            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-[#E3F1ED] text-[#0F5C4D] text-[11px] font-semibold hover:bg-[#d6eae4] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 py-1 px-2.5 rounded-full bg-[#E3F1ED] text-[#0F5C4D] text-[11px] font-semibold hover:bg-[#d6eae4] transition-colors cursor-pointer shrink-0"
             title="Refresh GPS location"
           >
             <Navigation className={`w-3 h-3 ${isGettingGps ? 'animate-spin' : ''}`} />
-            <span>
+            <span className="truncate max-w-[130px] sm:max-w-[200px]">
               {gpsCoords
                 ? `GPS ±${gpsCoords.accuracy ?? 10}m`
                 : location.name}
@@ -379,7 +403,7 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
             <RefreshCw className={`w-2.5 h-2.5 opacity-60 ${isGettingGps ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        <p className="text-sm text-[#5E6E6A] mt-1">
+        <p className="text-xs sm:text-sm text-[#5E6E6A] mt-0.5">
           Hold your phone flat and turn until the arrow points straight up.
         </p>
         {gpsError && (
@@ -391,13 +415,13 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
       </div>
 
       {/* Main Compass Dial Container */}
-      <div className="relative my-4 flex flex-col items-center justify-center">
-        {/* iOS permission prompt button */}
+      <div className="relative my-2 sm:my-3 flex flex-col items-center justify-center shrink-0">
+        {/* iOS permission prompt button if required */}
         {sensorStatus === 'needs_permission' && (
-          <div className="mb-3">
+          <div className="mb-2">
             <button
               onClick={requestIosPermission}
-              className="py-2.5 px-5 rounded-2xl bg-[#0F5C4D] text-white text-xs font-bold shadow-md hover:bg-[#0c4a3e] active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
+              className="py-2 px-4 rounded-2xl bg-[#0F5C4D] text-white text-xs font-bold shadow-md hover:bg-[#0c4a3e] active:scale-98 transition-all flex items-center gap-2 cursor-pointer"
             >
               <Smartphone className="w-4 h-4" />
               <span>Enable iPhone Compass</span>
@@ -407,37 +431,43 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
 
         {/* Outer Circular Dial Housing */}
         <div
-          className={`w-76 h-76 sm:w-84 sm:h-84 rounded-full bg-white border-2 relative flex items-center justify-center shadow-lg transition-colors duration-300 ${
+          className={`w-[min(62vw,240px)] h-[min(62vw,240px)] aspect-square rounded-full bg-white border-2 relative flex items-center justify-center shadow-lg transition-colors duration-300 ${
             isAligned
-              ? 'border-[#0F5C4D] ring-8 ring-[#0F5C4D]/15'
+              ? 'border-[#0F5C4D] ring-6 sm:ring-8 ring-[#0F5C4D]/15'
               : 'border-[#E4E8E5]'
           }`}
         >
           {/* Top Lubber Line (Phone Top Heading Notch) */}
           <div className="absolute top-1 flex flex-col items-center z-30 pointer-events-none">
-            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shadow-xs transition-colors ${
+            <div className={`w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full flex items-center justify-center shadow-xs transition-colors ${
               isAligned ? 'bg-[#0F5C4D]' : 'bg-[#14211F]'
             }`}>
               <div className="w-1.5 h-1.5 rounded-full bg-white" />
             </div>
-            <div className={`w-0.5 h-2 ${isAligned ? 'bg-[#0F5C4D]' : 'bg-[#14211F]'}`} />
+            <div className={`w-0.5 h-1.5 sm:h-2 ${isAligned ? 'bg-[#0F5C4D]' : 'bg-[#14211F]'}`} />
           </div>
 
-          {/* Rotating Compass Dial Face (behaves like a real mobile phone compass) */}
-          {/* The dial rotates opposite to device heading (-effectiveContinuousHeading) */}
+          {/* Rotating Compass Dial Face (rotates on its own to North) */}
+          {/* The dial rotates opposite to heading (-effectiveContinuousHeading) so North points to True North */}
           <div
-            className="w-68 h-68 sm:w-76 sm:h-76 rounded-full relative flex items-center justify-center"
+            className="w-[90%] h-[90%] aspect-square rounded-full relative flex items-center justify-center"
             style={{
               transform: `rotate(${-effectiveContinuousHeading}deg)`,
-              transition: sensorStatus === 'active' ? 'transform 0.08s linear' : 'transform 0.2s ease-out',
+              transition: sensorStatus === 'active' ? 'transform 0.08s linear' : 'transform 0.15s ease-out',
               willChange: 'transform',
             }}
           >
-            {/* SVG Compass Rose with Cardinal directions, ticks, and Kaaba marker */}
+            {/* SVG Compass Rose with Cardinal directions, ticks, Kaaba marker, and Emerald needle */}
             <svg
               viewBox="0 0 280 280"
-              className="w-full h-full absolute inset-0 pointer-events-none"
+              className="w-full h-full pointer-events-none overflow-visible"
             >
+              <defs>
+                <filter id="emerald-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#0F5C4D" floodOpacity="0.3" />
+                </filter>
+              </defs>
+
               {/* Outer dial ring */}
               <circle
                 cx="140"
@@ -518,97 +548,111 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
                 );
               })}
 
-              {/* Geographically fixed Qibla Marker on the compass dial face */}
+              {/* Distinct North Needle Arrow pointing to N (0°) on the compass dial */}
+              <g transform="rotate(0, 140, 140)">
+                <polygon
+                  points="140,40 144,70 136,70"
+                  fill="#0F5C4D"
+                  opacity="0.8"
+                />
+              </g>
+
+              {/* Geographically fixed Qibla Marker & Emerald Arrow on the compass dial face */}
               {/* Positioned at exact bearing to Mecca from True North */}
-              {(() => {
-                const rad = ((qiblaAngle - 90) * Math.PI) / 180;
-                const r = 104;
-                const kx = 140 + r * Math.cos(rad);
-                const ky = 140 + r * Math.sin(rad);
+              <g transform={`rotate(${qiblaAngle}, 140, 140)`}>
+                {/* Golden alignment line from center to Qibla marker */}
+                <line
+                  x1="140"
+                  y1="140"
+                  x2="140"
+                  y2="36"
+                  stroke="#C9A24B"
+                  strokeWidth="1.5"
+                  strokeDasharray="3 3"
+                  opacity="0.8"
+                />
 
-                return (
-                  <g transform={`rotate(${qiblaAngle}, 140, 140)`}>
-                    {/* Golden alignment line from center to Qibla marker */}
-                    <line
-                      x1="140"
-                      y1="140"
-                      x2="140"
-                      y2="36"
-                      stroke="#C9A24B"
-                      strokeWidth="1.5"
-                      strokeDasharray="3 3"
-                      opacity="0.8"
-                    />
+                {/* Kaaba Marker Beacon */}
+                <g transform="translate(140, 36)">
+                  {/* Golden beacon glow */}
+                  <circle
+                    cx="0"
+                    cy="0"
+                    r="12"
+                    fill="#C9A24B"
+                    fillOpacity="0.25"
+                  />
+                  <circle
+                    cx="0"
+                    cy="0"
+                    r="8"
+                    fill="#C9A24B"
+                    stroke="#FFFFFF"
+                    strokeWidth="1.5"
+                  />
+                  {/* Stylized Kaaba cube in center of marker */}
+                  <rect
+                    x="-3"
+                    y="-3"
+                    width="6"
+                    height="6"
+                    rx="1"
+                    fill="#14211F"
+                  />
+                  <line
+                    x1="-3"
+                    y1="-1"
+                    x2="3"
+                    y2="-1"
+                    stroke="#C9A24B"
+                    strokeWidth="0.8"
+                  />
+                </g>
 
-                    {/* Kaaba Marker Badge */}
-                    <g transform="translate(140, 36)">
-                      {/* Golden beacon glow */}
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r="12"
-                        fill="#C9A24B"
-                        fillOpacity="0.25"
-                      />
-                      <circle
-                        cx="0"
-                        cy="0"
-                        r="8"
-                        fill="#C9A24B"
-                        stroke="#FFFFFF"
-                        strokeWidth="1.5"
-                      />
-                      {/* Stylized Kaaba cube in center of marker */}
-                      <rect
-                        x="-3"
-                        y="-3"
-                        width="6"
-                        height="6"
-                        rx="1"
-                        fill="#14211F"
-                      />
-                      <line
-                        x1="-3"
-                        y1="-1"
-                        x2="3"
-                        y2="-1"
-                        stroke="#C9A24B"
-                        strokeWidth="0.8"
-                      />
-                    </g>
-                  </g>
-                );
-              })()}
-            </svg>
+                {/* Central Emerald Needle pointing along Qibla bearing */}
+                <g filter="url(#emerald-glow)">
+                  {/* Needle head pointing towards Kaaba */}
+                  <polygon
+                    points="140,48 149,94 140,88 131,94"
+                    fill="#0F5C4D"
+                  />
+                  {/* Needle shaft down to center */}
+                  <line
+                    x1="140"
+                    y1="88"
+                    x2="140"
+                    y2="140"
+                    stroke="#0F5C4D"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    opacity="0.9"
+                  />
+                </g>
+              </g>
 
-            {/* Central Emerald Qibla Arrow Pointer */}
-            {/* Points along the relative Qibla bearing */}
-            <div
-              className="absolute w-20 h-44 flex flex-col items-center justify-start pointer-events-none"
-              style={{
-                transform: `rotate(${qiblaAngle}deg)`,
-                transformOrigin: '50% 100%',
-                top: 'calc(50% - 176px)',
-              }}
-            >
-              {/* Emerald Needle Head */}
-              <div
-                className={`w-0 h-0 border-l-[18px] border-l-transparent border-r-[18px] border-r-transparent border-b-[50px] filter drop-shadow-md transition-colors ${
-                  isAligned ? 'border-b-[#0F5C4D]' : 'border-b-[#0F5C4D]'
-                }`}
+              {/* Center Gold Hub */}
+              <circle
+                cx="140"
+                cy="140"
+                r="13"
+                fill="#FFFFFF"
+                stroke="#E4E8E5"
+                strokeWidth="2"
               />
-              <div className="w-1.5 h-16 bg-[#0F5C4D]/80 rounded-full mt-[-2px]" />
-            </div>
-
-            {/* Center Gold Hub */}
-            <div className="w-7 h-7 rounded-full bg-white border-2 border-[#E4E8E5] shadow-xs flex items-center justify-center z-10">
-              <div className="w-3.5 h-3.5 rounded-full bg-[#C9A24B] border border-white shadow-2xs" />
-            </div>
+              <circle
+                cx="140"
+                cy="140"
+                r="6.5"
+                fill="#C9A24B"
+                stroke="#FFFFFF"
+                strokeWidth="1.5"
+              />
+            </svg>
           </div>
         </div>
 
         {/* Current Device Compass Heading Readout */}
-        <div className="mt-3 text-xs font-semibold text-[#5E6E6A] flex items-center gap-1.5">
+        <div className="mt-2 sm:mt-2.5 text-[11px] sm:text-xs font-semibold text-[#5E6E6A] flex items-center gap-1.5">
           <Compass className="w-3.5 h-3.5 text-[#0F5C4D]" />
           <span>
             Heading: <strong className="text-[#14211F]">{Math.round(effectiveHeading)}° {currentCardinal}</strong>
@@ -619,59 +663,27 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
             </span>
           )}
         </div>
-
-        {/* Fallback Simulator / Calibrator Slider when sensor is inactive or on desktop */}
-        {sensorStatus !== 'active' && (
-          <div className="w-72 mt-3 px-3 py-2.5 rounded-2xl bg-white border border-[#E4E8E5] shadow-2xs text-left">
-            <div className="flex items-center justify-between text-[11px] text-[#5E6E6A] mb-1.5">
-              <span>Simulate phone rotation:</span>
-              <span className="font-bold text-[#14211F]">{manualHeading}° ({getCardinalDirection(manualHeading)})</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="359"
-              value={manualHeading}
-              onChange={(e) => setManualHeading(Number(e.target.value))}
-              className="w-full accent-[#0F5C4D] cursor-pointer"
-            />
-            <div className="flex items-center justify-between mt-1 text-[11px]">
-              <button
-                onClick={() => setManualHeading(0)}
-                className="text-[#5E6E6A] hover:text-[#14211F]"
-              >
-                Face North (0°)
-              </button>
-              <button
-                onClick={() => setManualHeading(Math.round(qiblaAngle))}
-                className="text-[#0F5C4D] font-bold hover:underline"
-              >
-                Face Makkah ({Math.round(qiblaAngle)}°)
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Degree & Distance Readout */}
-      <div className="space-y-1.5 my-1">
+      <div className="space-y-1 my-1 shrink-0">
         <div className="flex items-baseline justify-center gap-2">
-          <span className="text-4xl font-extrabold text-[#14211F] tracking-tight">
+          <span className="text-3xl sm:text-4xl font-extrabold text-[#14211F] tracking-tight">
             {Math.round(qiblaAngle)}°
           </span>
-          <span className="text-base font-bold text-[#0F5C4D]">
+          <span className="text-sm sm:text-base font-bold text-[#0F5C4D]">
             {qiblaCardinal}
           </span>
         </div>
-        <div className="text-sm text-[#5E6E6A]">
+        <div className="text-xs sm:text-sm text-[#5E6E6A]">
           Makkah is about {distanceKm.toLocaleString()} km away from {location.name}
         </div>
 
         {/* Facing Status Badge */}
-        <div className="pt-2">
+        <div className="pt-1.5">
           {isAligned ? (
-            <div className="inline-flex items-center gap-2 py-2 px-6 rounded-full bg-[#0F5C4D] text-white text-sm font-bold shadow-md animate-bounce-short">
-              <Check className="w-4.5 h-4.5 text-white stroke-[3]" />
+            <div className="inline-flex items-center gap-1.5 py-1.5 px-5 rounded-full bg-[#0F5C4D] text-white text-xs sm:text-sm font-bold shadow-md animate-bounce-short">
+              <Check className="w-4 h-4 text-white stroke-[3]" />
               <span>You're facing Makkah ({Math.round(relativeAngle)}°)</span>
             </div>
           ) : (
@@ -686,17 +698,17 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
       </div>
 
       {/* Troubleshooting & Figure-8 Calibration Guide */}
-      <div className="w-full mt-3 p-3.5 rounded-2xl bg-white border border-[#E4E8E5] text-left shadow-2xs">
+      <div className="w-full max-w-sm mt-2 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white border border-[#E4E8E5] text-left shadow-2xs shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center shrink-0 text-[#0F5C4D]">
-              <Compass className="w-4.5 h-4.5 text-[#0F5C4D]" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#E3F1ED] flex items-center justify-center shrink-0 text-[#0F5C4D]">
+              <Compass className="w-4 h-4 text-[#0F5C4D]" />
             </div>
             <div>
               <p className="text-xs font-semibold text-[#14211F]">
                 Compass Calibration
               </p>
-              <p className="text-[11px] text-[#5E6E6A]">
+              <p className="text-[10px] sm:text-[11px] text-[#5E6E6A]">
                 Move your phone in a figure-8 motion to calibrate the compass.
               </p>
             </div>
@@ -711,7 +723,7 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
 
         {/* Expandable calibration guide */}
         {showCalibrationGuide && (
-          <div className="mt-2.5 pt-2.5 border-t border-[#E4E8E5] text-[11px] text-[#5E6E6A] space-y-1">
+          <div className="mt-2 pt-2 border-t border-[#E4E8E5] text-[10px] sm:text-[11px] text-[#5E6E6A] space-y-1">
             <p className="font-medium text-[#14211F]">To calibrate phone magnetometer:</p>
             <ol className="list-decimal pl-4 space-y-0.5">
               <li>Step away from large metal objects, speakers, or laptops.</li>
@@ -719,7 +731,7 @@ export const QiblaScreen: React.FC<QiblaScreenProps> = ({ location }) => {
               <li>Keep the phone as flat as possible for maximum accuracy.</li>
             </ol>
             {sensorAccuracy !== null && (
-              <p className="text-[10px] text-[#0F5C4D] pt-1">
+              <p className="text-[10px] text-[#0F5C4D] pt-0.5">
                 Sensor accuracy rating: ±{sensorAccuracy}°
               </p>
             )}

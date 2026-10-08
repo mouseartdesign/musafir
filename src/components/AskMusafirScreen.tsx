@@ -9,8 +9,11 @@ import {
   Calendar,
   Utensils,
   Navigation,
+  Compass,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react';
-import { LocationData, PrayerTimesData, Place, ChatMessage } from '../types';
+import { LocationData, PrayerTimesData, Place, ChatMessage, TripGuide } from '../types';
 import { MarkdownMessage } from './MarkdownMessage';
 
 interface AskMusafirScreenProps {
@@ -20,6 +23,8 @@ interface AskMusafirScreenProps {
   onNavigateExplore?: (cat: 'mosque' | 'halal') => void;
   onNavigateTrip?: () => void;
   onSelectPlace?: (place: Place) => void;
+  tripGuide?: TripGuide;
+  onUpdateTripGuide?: (guide: TripGuide) => void;
 }
 
 export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
@@ -29,6 +34,8 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
   onNavigateExplore,
   onNavigateTrip,
   onSelectPlace,
+  tripGuide,
+  onUpdateTripGuide,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -80,6 +87,7 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
             nextPrayerName: prayerTimes.nextPrayer,
             nextPrayerTime: prayerTimes.nextPrayerTime,
           },
+          tripContext: tripGuide,
         }),
       });
 
@@ -89,13 +97,19 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
 
       const data = await res.json();
 
+      // If trip was updated by AI, update parent trip state
+      if (data.updatedGuide && onUpdateTripGuide) {
+        onUpdateTripGuide(data.updatedGuide);
+      }
+
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
         sender: 'assistant',
         text: data.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         card: data.card,
-        actions: ['Halal food nearby', 'Add to my trip'],
+        tripAction: data.tripAction,
+        actions: tripGuide ? ['What is next on my trip?', 'Find halal food nearby', 'View Trip Guide'] : ['Halal food nearby', 'Add to my trip'],
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -104,8 +118,22 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
       const lower = text.toLowerCase();
       let fallbackText = `Assalamu alaikum! In ${location.name}, prayer times and Qibla are saved offline.`;
       let fallbackCard: any = null;
+      let fallbackTripAction: any = null;
 
-      if (lower.includes('pray') || lower.includes('mosque')) {
+      if (lower.includes('running late') || lower.includes('late')) {
+        fallbackText = `I've adjusted your trip schedule forward by 30 minutes. Your timeline is updated.`;
+        fallbackTripAction = {
+          action: 'delayed',
+          description: 'Shifted schedule forward by 30 minutes.',
+        };
+      } else if (lower.includes('what next') || lower.includes("what's next")) {
+        if (tripGuide?.days?.[0]?.stops?.[0]) {
+          const nextStop = tripGuide.days[0].stops.find((s) => s.status === 'upcoming') || tripGuide.days[0].stops[0];
+          fallbackText = `Your next stop is **${nextStop.title}** at **${nextStop.time}** (${nextStop.subtitle}).`;
+        } else {
+          fallbackText = `Your next activity is set in the Trip Guide.`;
+        }
+      } else if (lower.includes('pray') || lower.includes('mosque')) {
         fallbackText = `The closest is Jumeirah Mosque, 350 m away (about 5 minutes on foot). Asr starts at ${prayerTimes.asr}, so you have time to pray before your tour.`;
         fallbackCard = {
           type: 'mosque',
@@ -129,6 +157,7 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
         text: fallbackText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         card: fallbackCard,
+        tripAction: fallbackTripAction,
         actions: ['Halal food nearby', 'Add to my trip'],
       };
 
@@ -142,7 +171,7 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
     if (action.includes('Halal food')) {
       if (onNavigateExplore) onNavigateExplore('halal');
       else handleSendMessage('Find halal food nearby');
-    } else if (action.includes('Add to my trip')) {
+    } else if (action.includes('View Trip Guide') || action.includes('Add to my trip')) {
       if (onNavigateTrip) onNavigateTrip();
       else handleSendMessage('Plan a prayer-friendly Day 2');
     } else {
@@ -150,47 +179,86 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
     }
   };
 
-  const suggestionCards = [
-    {
-      title: 'Where can I pray near me?',
-      icon: (
-        <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-            <circle cx="12" cy="12" r="10" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </div>
-      ),
-      query: 'Where can I pray near me? I have 20 minutes before my tour.',
-    },
-    {
-      title: 'Find halal dinner near my hotel',
-      icon: (
-        <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
-          <Utensils className="w-4 h-4" />
-        </div>
-      ),
-      query: 'Find halal dinner near my hotel',
-    },
-    {
-      title: 'What time is Maghrib today?',
-      icon: (
-        <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
-          <Clock className="w-4 h-4" />
-        </div>
-      ),
-      query: 'What time is Maghrib today?',
-    },
-    {
-      title: 'Plan a prayer-friendly Day 2',
-      icon: (
-        <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
-          <Calendar className="w-4 h-4" />
-        </div>
-      ),
-      query: 'Plan a prayer-friendly Day 2 itinerary for Dubai',
-    },
-  ];
+  const suggestionCards = tripGuide?.days?.length
+    ? [
+        {
+          title: "What's next on my trip?",
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <Compass className="w-4 h-4" />
+            </div>
+          ),
+          query: "What's next on my trip?",
+        },
+        {
+          title: "I'm running 30 minutes late",
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#FBF3DE] flex items-center justify-center text-[#C9A24B]">
+              <Clock className="w-4 h-4" />
+            </div>
+          ),
+          query: "I'm running 30 minutes late, adjust my schedule",
+        },
+        {
+          title: 'Where am I having lunch today?',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <Utensils className="w-4 h-4" />
+            </div>
+          ),
+          query: 'Where am I having lunch today according to my trip guide?',
+        },
+        {
+          title: 'Skip my next activity',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+              <Calendar className="w-4 h-4" />
+            </div>
+          ),
+          query: 'Skip my next activity and update the timeline',
+        },
+      ]
+    : [
+        {
+          title: 'Where can I pray near me?',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                <circle cx="12" cy="12" r="10" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </div>
+          ),
+          query: 'Where can I pray near me? I have 20 minutes before my tour.',
+        },
+        {
+          title: 'Find halal dinner near my hotel',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <Utensils className="w-4 h-4" />
+            </div>
+          ),
+          query: 'Find halal dinner near my hotel',
+        },
+        {
+          title: 'What time is Maghrib today?',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <Clock className="w-4 h-4" />
+            </div>
+          ),
+          query: 'What time is Maghrib today?',
+        },
+        {
+          title: 'Plan a prayer-friendly trip',
+          icon: (
+            <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
+              <Calendar className="w-4 h-4" />
+            </div>
+          ),
+          query: 'Help me plan a 3-day Muslim travel guide with prayer times',
+        },
+      ];
 
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] justify-between bg-[#F7F5EF] animate-fade-in">
@@ -212,6 +280,17 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
             </div>
           </div>
         </div>
+
+        {tripGuide?.destination && onNavigateTrip && (
+          <button
+            onClick={onNavigateTrip}
+            className="py-1 px-2.5 rounded-full bg-[#E3F1ED] hover:bg-[#0F5C4D] hover:text-white text-[#0F5C4D] text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+            title="Open active trip guide"
+          >
+            <Compass className="w-3 h-3" />
+            <span>{tripGuide.destination.name.split(',')[0]}</span>
+          </button>
+        )}
       </div>
 
       {/* Main Content: Welcome State OR Messages Stream */}
@@ -279,6 +358,36 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
                       <div className="bg-white border border-[#E4E8E5] text-[#14211F] p-3.5 rounded-2xl rounded-tl-xs shadow-2xs">
                         <MarkdownMessage content={msg.text} />
                       </div>
+
+                      {/* Interactive Trip Action Card */}
+                      {msg.tripAction && (
+                        <div className="bg-[#E3F1ED] p-3.5 rounded-2xl border border-[#0F5C4D]/25 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-xs font-bold text-[#0F5C4D]">
+                              <CheckCircle2 className="w-4 h-4 text-[#0F5C4D]" />
+                              <span>Trip Guide Updated</span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F5C4D]/70 bg-white/70 px-2 py-0.5 rounded-full">
+                              {msg.tripAction.action}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-[#14211F] font-medium leading-relaxed">
+                            {msg.tripAction.description}
+                          </p>
+
+                          {onNavigateTrip && (
+                            <button
+                              type="button"
+                              onClick={onNavigateTrip}
+                              className="w-full py-2 px-3 rounded-xl bg-[#0F5C4D] hover:bg-[#0A4237] text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                            >
+                              <span>Open Trip Guide Timeline</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* In-chat contextual place card */}
                       {msg.card && (

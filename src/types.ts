@@ -52,19 +52,61 @@ export interface Place {
   isReal?: boolean;
 }
 
+export type TripStopType = 'sightseeing' | 'prayer' | 'food' | 'freetime' | 'travel';
+export type TripStopStatus = 'upcoming' | 'active' | 'completed' | 'skipped';
+
 export interface TripStop {
   id: string;
   time: string;
+  durationMinutes?: number;
   title: string;
   subtitle: string;
-  type: 'sightseeing' | 'prayer' | 'food' | 'freetime';
+  type: TripStopType;
   distance?: string;
+  distanceMeters?: number;
+  travelTime?: string;
+  status?: TripStopStatus;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  googleMapsUri?: string;
+  notes?: string;
+  prayerName?: PrayerName;
+  halalStatus?: string;
 }
 
 export interface TripDay {
   dayNumber: number;
   title: string;
+  dateStr?: string;
+  theme?: string;
   stops: TripStop[];
+}
+
+export interface TripPreferences {
+  destination: {
+    name: string;
+    formattedAddress?: string;
+    lat: number;
+    lng: number;
+    country?: string;
+  };
+  startingLocation: string;
+  startDate: string;
+  durationDays: number;
+  dailyStartTime: string;
+  travelStyle: 'relaxed' | 'moderate' | 'fast-paced' | 'walking-friendly';
+  interests: string[];
+}
+
+export interface TripGuide {
+  id: string;
+  destination: TripPreferences['destination'];
+  preferences: TripPreferences;
+  days: TripDay[];
+  activeDayNumber: number;
+  isGenerating?: boolean;
+  lastUpdatedAt: string;
 }
 
 export interface ChatMessage {
@@ -80,6 +122,11 @@ export interface ChatMessage {
     googleMapsUri?: string;
     distance?: string;
     statusText?: string;
+  };
+  tripAction?: {
+    action: 'updated' | 're-planned' | 'delayed' | 'skipped' | 'added';
+    description: string;
+    dayNumber?: number;
   };
   actions?: string[];
 }

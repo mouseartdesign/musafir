@@ -1,6 +1,6 @@
-import { LocationData, TripDay } from '../types';
+import { LocationData, TripDay, TripGuide } from '../types';
 import { DEFAULT_LOCATION } from '../data/cities';
-import { INITIAL_TRIP_DAYS } from '../data/trips';
+import { INITIAL_TRIP_DAYS, INITIAL_TRIP_GUIDE } from '../data/trips';
 
 const STORAGE_KEYS = {
   HAS_ONBOARDED: 'musafir_has_onboarded',
@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   PRAYER_NOTIFICATIONS: 'musafir_prayer_notifs',
   OFFLINE_PACK_DATE: 'musafir_offline_pack_date',
   TRIP_DAYS: 'musafir_trip_days',
+  TRIP_GUIDE: 'musafir_trip_guide_active',
 };
 
 export interface OfflinePackMeta {
@@ -148,3 +149,32 @@ export function saveTripDays(days: TripDay[]): void {
     localStorage.setItem(STORAGE_KEYS.TRIP_DAYS, JSON.stringify(days));
   } catch {}
 }
+
+export function getTripGuide(): TripGuide {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.TRIP_GUIDE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.destination && Array.isArray(parsed.days)) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return INITIAL_TRIP_GUIDE;
+}
+
+export function saveTripGuide(guide: TripGuide): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.TRIP_GUIDE, JSON.stringify(guide));
+    if (guide.days) {
+      saveTripDays(guide.days);
+    }
+  } catch {}
+}
+
+export function clearTripGuide(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.TRIP_GUIDE);
+  } catch {}
+}
+

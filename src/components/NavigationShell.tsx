@@ -17,11 +17,11 @@ export const NavigationShell: React.FC<NavigationShellProps> = ({
   children,
 }) => {
   return (
-    <div className="min-h-screen bg-[#F7F5EF] text-[#14211F] flex flex-col justify-between items-center selection:bg-[#E3F1ED] selection:text-[#0F5C4D]">
+    <div className="min-h-screen min-h-[100dvh] w-full bg-[#F7F5EF] text-[#14211F] flex flex-col justify-between items-center selection:bg-[#E3F1ED] selection:text-[#0F5C4D] overflow-x-hidden">
       {/* Centered responsive container - provides exact mobile layout with seamless desktop enhancement */}
-      <div className="w-full max-w-md sm:max-w-lg min-h-screen bg-[#F7F5EF] flex flex-col relative pb-20 shadow-xl shadow-black/5">
+      <div className="w-full max-w-md sm:max-w-lg min-h-screen min-h-[100dvh] bg-[#F7F5EF] flex flex-col relative pb-20 shadow-xl shadow-black/5 overflow-x-hidden">
         {/* Main Content Area */}
-        <main className="flex-1 w-full">{children}</main>
+        <main className="flex-1 w-full max-w-full overflow-x-hidden">{children}</main>
 
         {/* Bottom Navigation Bar */}
         <nav
