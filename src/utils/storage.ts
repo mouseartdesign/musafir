@@ -150,17 +150,17 @@ export function saveTripDays(days: TripDay[]): void {
   } catch {}
 }
 
-export function getTripGuide(): TripGuide {
+export function getTripGuide(): TripGuide | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.TRIP_GUIDE);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.destination && Array.isArray(parsed.days)) {
+      if (parsed && parsed.destination && Array.isArray(parsed.days) && parsed.days.length > 0) {
         return parsed;
       }
     }
   } catch {}
-  return INITIAL_TRIP_GUIDE;
+  return null;
 }
 
 export function saveTripGuide(guide: TripGuide): void {
@@ -175,6 +175,7 @@ export function saveTripGuide(guide: TripGuide): void {
 export function clearTripGuide(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.TRIP_GUIDE);
+    localStorage.removeItem(STORAGE_KEYS.TRIP_DAYS);
   } catch {}
 }
 

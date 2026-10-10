@@ -31,8 +31,9 @@ import { POPULAR_CITIES } from '../data/cities';
 
 interface TripScreenProps {
   location: LocationData;
-  tripGuide: TripGuide;
+  tripGuide?: TripGuide | null;
   onUpdateTripGuide: (updated: TripGuide) => void;
+  onResetTripGuide?: () => void;
   onOpenAsk: () => void;
   prayerTimes: PrayerTimesData;
   userCoords?: { lat: number; lng: number };
@@ -61,6 +62,7 @@ export const TripScreen: React.FC<TripScreenProps> = ({
   location,
   tripGuide,
   onUpdateTripGuide,
+  onResetTripGuide,
   onOpenAsk,
   prayerTimes,
   userCoords,
@@ -74,6 +76,7 @@ export const TripScreen: React.FC<TripScreenProps> = ({
   const [destinationSearch, setDestinationSearch] = useState('');
   const [destinationResults, setDestinationResults] = useState<any[]>([]);
   const [isSearchingDest, setIsSearchingDest] = useState(false);
+  const [regionFilter, setRegionFilter] = useState<'all' | 'middle-east' | 'asia' | 'europe' | 'other'>('all');
   const [selectedDest, setSelectedDest] = useState<any>(tripGuide?.destination || {
     name: location.name,
     formattedAddress: `${location.name}, ${location.country}`,
@@ -462,11 +465,83 @@ export const TripScreen: React.FC<TripScreenProps> = ({
 
         {/* Popular Muslim-Friendly Destinations */}
         <div>
-          <div className="text-xs font-bold text-[#5E6E6A] mb-2 uppercase tracking-wider">
-            Popular Destinations
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-[#5E6E6A] uppercase tracking-wider">
+              Popular Destinations ({POPULAR_CITIES.length})
+            </span>
+            <span className="text-[10px] text-[#0F5C4D] font-semibold">
+              Filter by region
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {POPULAR_CITIES.slice(0, 6).map((city) => {
+
+          {/* Region Filter Chips */}
+          <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar mb-2">
+            {[
+              { id: 'all', label: 'All Places' },
+              { id: 'middle-east', label: '🕌 Middle East' },
+              { id: 'asia', label: '🌏 Asia' },
+              { id: 'europe', label: '🏛️ Europe & Heritage' },
+              { id: 'other', label: '🌐 Global' },
+            ].map((reg) => (
+              <button
+                key={reg.id}
+                type="button"
+                onClick={() => setRegionFilter(reg.id as any)}
+                className={`py-1 px-2.5 rounded-full text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                  regionFilter === reg.id
+                    ? 'bg-[#0F5C4D] text-white shadow-xs'
+                    : 'bg-white border border-[#E4E8E5] text-[#5E6E6A] hover:text-[#14211F]'
+                }`}
+              >
+                {reg.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+            {POPULAR_CITIES.filter((city) => {
+              if (regionFilter === 'all') return true;
+              const c = city.country.toLowerCase();
+              if (regionFilter === 'middle-east') {
+                return (
+                  c.includes('emirates') ||
+                  c.includes('saudi') ||
+                  c.includes('qatar') ||
+                  c.includes('egypt') ||
+                  c.includes('jordan') ||
+                  c.includes('oman')
+                );
+              }
+              if (regionFilter === 'asia') {
+                return (
+                  c.includes('malaysia') ||
+                  c.includes('singapore') ||
+                  c.includes('indonesia') ||
+                  c.includes('japan') ||
+                  c.includes('korea') ||
+                  c.includes('thailand') ||
+                  c.includes('azerbaijan') ||
+                  c.includes('uzbekistan')
+                );
+              }
+              if (regionFilter === 'europe') {
+                return (
+                  c.includes('turkey') ||
+                  c.includes('united kingdom') ||
+                  c.includes('france') ||
+                  c.includes('spain') ||
+                  c.includes('bosnia')
+                );
+              }
+              if (regionFilter === 'other') {
+                return (
+                  c.includes('united states') ||
+                  c.includes('australia') ||
+                  c.includes('south africa')
+                );
+              }
+              return true;
+            }).map((city) => {
               const isSelected = selectedDest?.name === city.name;
               return (
                 <button
@@ -483,7 +558,7 @@ export const TripScreen: React.FC<TripScreenProps> = ({
                   }}
                   className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-[#E3F1ED] border-[#0F5C4D] text-[#0F5C4D] shadow-xs'
+                      ? 'bg-[#E3F1ED] border-[#0F5C4D] text-[#0F5C4D] shadow-xs ring-1 ring-[#0F5C4D]'
                       : 'bg-white border-[#E4E8E5] text-[#14211F] hover:border-[#0F5C4D]/40'
                   }`}
                 >
@@ -527,7 +602,7 @@ export const TripScreen: React.FC<TripScreenProps> = ({
           </button>
         </div>
 
-        {tripGuide?.days?.length > 0 && (
+        {Boolean(tripGuide?.days && tripGuide.days.length > 0) && (
           <div className="text-center">
             <button
               onClick={() => setViewMode('companion')}
@@ -725,6 +800,26 @@ export const TripScreen: React.FC<TripScreenProps> = ({
   // ==============================================================
   // 3. LIVE TRIP COMPANION & TIMELINE SCREEN
   // ==============================================================
+  if (!tripGuide || !tripGuide.destination || !tripGuide.days || tripGuide.days.length === 0) {
+    return (
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4 animate-fade-in max-w-sm mx-auto">
+        <div className="w-16 h-16 rounded-3xl bg-[#E3F1ED] text-[#0F5C4D] flex items-center justify-center shadow-xs">
+          <Compass className="w-8 h-8 text-[#0F5C4D]" />
+        </div>
+        <h2 className="text-xl font-bold text-[#14211F]">No Trip Plan Yet</h2>
+        <p className="text-xs text-[#5E6E6A]">
+          Choose a destination and let Musafir's AI build a customized travel itinerary with prayer times and halal dining.
+        </p>
+        <button
+          onClick={() => setViewMode('setup-destination')}
+          className="w-full py-3.5 px-6 rounded-2xl bg-[#0F5C4D] text-white font-bold text-sm shadow-xs transition-colors cursor-pointer"
+        >
+          Create Trip Plan
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-5 flex flex-col space-y-4 animate-fade-in max-w-lg mx-auto">
       {/* Top Header */}
@@ -742,20 +837,26 @@ export const TripScreen: React.FC<TripScreenProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Re-plan / Setup new trip */}
+        <div className="flex items-center gap-1.5">
+          {/* Create new plan / Reset trip */}
           <button
-            onClick={() => setViewMode('setup-destination')}
-            className="p-2 rounded-full bg-white hover:bg-[#E3F1ED] text-[#5E6E6A] hover:text-[#0F5C4D] border border-[#E4E8E5] transition-colors cursor-pointer shadow-2xs"
-            title="Plan another trip"
+            onClick={() => {
+              if (onResetTripGuide) {
+                onResetTripGuide();
+              }
+              setViewMode('setup-destination');
+            }}
+            className="py-1.5 px-2.5 rounded-full bg-white hover:bg-[#E3F1ED] text-[#5E6E6A] hover:text-[#0F5C4D] border border-[#E4E8E5] transition-colors cursor-pointer text-xs font-semibold flex items-center gap-1 shadow-2xs"
+            title="Create a new trip plan"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Plan</span>
           </button>
 
           {/* Ask Musafir Pill */}
           <button
             onClick={onOpenAsk}
-            className="py-1.5 px-3.5 rounded-full bg-[#0F5C4D] hover:bg-[#0A4237] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            className="py-1.5 px-3 rounded-full bg-[#0F5C4D] hover:bg-[#0A4237] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#C9A24B]" />
             <span>Ask</span>

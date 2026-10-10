@@ -23,7 +23,7 @@ interface AskMusafirScreenProps {
   onNavigateExplore?: (cat: 'mosque' | 'halal') => void;
   onNavigateTrip?: () => void;
   onSelectPlace?: (place: Place) => void;
-  tripGuide?: TripGuide;
+  tripGuide?: TripGuide | null;
   onUpdateTripGuide?: (guide: TripGuide) => void;
 }
 
@@ -133,13 +133,17 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
         } else {
           fallbackText = `Your next activity is set in the Trip Guide.`;
         }
-      } else if (lower.includes('pray') || lower.includes('mosque')) {
-        fallbackText = `The closest is Jumeirah Mosque, 350 m away (about 5 minutes on foot). Asr starts at ${prayerTimes.asr}, so you have time to pray before your tour.`;
-        fallbackCard = {
-          type: 'mosque',
-          title: 'Jumeirah Mosque',
-          subtitle: '350 m · Open now · Wudu area',
-        };
+      } else if (lower.includes('Jama') || lower.includes('Qasr')) {
+        fallbackText = `Yes, Sice you plan to Dubai trip its suitable for your trip. 
+        Whether you can combine (Jama') and shorten (Qasr) your prayers depends on your travel status according to Islamic jurisprudence.
+
+To qualify for these concessions, you must meet the following criteria:
+
+Distance: You must be traveling a distance that is traditionally considered a "journey" (Safar). Most scholars define this as approximately 77–80 kilometers (48–50 miles) or more from your home city.
+Intent: You must have the intention to travel this distance before you depart.
+Duration: You must intend to stay at your destination for less than 15 days (according to the Hanafi school) or less than 4 days (according to the Shafi'i, Maliki, and Hanbali schools). If you intend to stay longer, you are considered a resident and must pray fully.
+`;
+        
       } else if (lower.includes('halal') || lower.includes('dinner')) {
         fallbackText = `Al Mandi House is 250 m away with authentic Yemeni mandi, 100% Halal certified. Beirut Grill is also 600 m away with family seating.`;
         fallbackCard = {
@@ -182,13 +186,13 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
   const suggestionCards = tripGuide?.days?.length
     ? [
         {
-          title: "What's next on my trip?",
+          title: "Is Jama’ and Qasr suitable in my trip?",
           icon: (
             <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
               <Compass className="w-4 h-4" />
             </div>
           ),
-          query: "What's next on my trip?",
+          query: "Is Jama’ and Qasr suitable in my trip?",
         },
         {
           title: "I'm running 30 minutes late",
@@ -220,7 +224,7 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
       ]
     : [
         {
-          title: 'Where can I pray near me?',
+          title: 'Is Jama’ and Qasr suitable in my trip',
           icon: (
             <div className="w-8 h-8 rounded-xl bg-[#E3F1ED] flex items-center justify-center text-[#0F5C4D]">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -229,7 +233,7 @@ export const AskMusafirScreen: React.FC<AskMusafirScreenProps> = ({
               </svg>
             </div>
           ),
-          query: 'Where can I pray near me? I have 20 minutes before my tour.',
+          query: 'Is Jama’ and Qasr suitable in my trip',
         },
         {
           title: 'Find halal dinner near my hotel',

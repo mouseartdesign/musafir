@@ -25,11 +25,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       <div className="absolute top-24 -right-10 w-72 h-72 rounded-full border border-white/5 pointer-events-none" />
       <div className="absolute bottom-32 -left-20 w-80 h-80 rounded-full border border-white/5 pointer-events-none" />
 
-      {/* Top Status Space */}
-      <div className="w-full flex justify-between items-center text-xs text-white/50 pt-2 pb-6 z-10 font-mono">
-        <span>9:41</span>
-        <span>LTE 92%</span>
-      </div>
 
       {/* Middle Brand and Value Props */}
       <div className="flex-1 flex flex-col items-center justify-center my-auto z-10 text-center max-w-sm mx-auto">

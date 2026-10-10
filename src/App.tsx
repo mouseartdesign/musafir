@@ -25,6 +25,7 @@ import {
   saveTripDays,
   getTripGuide,
   saveTripGuide,
+  clearTripGuide,
 } from './utils/storage';
 
 import { NavigationShell, TabType } from './components/NavigationShell';
@@ -84,8 +85,8 @@ export default function App() {
 
   // Offline Pack & Trip Data
   const [offlineMeta, setOfflineMeta] = useState(() => getOfflinePackMeta(location.name));
-  const [tripGuide, setTripGuide] = useState<TripGuide>(() => getTripGuide());
-  const [tripDays, setTripDays] = useState<TripDay[]>(() => tripGuide?.days || getTripDays());
+  const [tripGuide, setTripGuide] = useState<TripGuide | null>(() => getTripGuide());
+  const [tripDays, setTripDays] = useState<TripDay[]>(() => tripGuide?.days || []);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>({
     lat: location.lat,
     lng: location.lng,
@@ -408,6 +409,11 @@ export default function App() {
             location={location}
             tripGuide={tripGuide}
             onUpdateTripGuide={handleUpdateTripGuide}
+            onResetTripGuide={() => {
+              setTripGuide(null);
+              setTripDays([]);
+              clearTripGuide();
+            }}
             onOpenAsk={() => setSubScreen('ask')}
             prayerTimes={prayerTimes}
             userCoords={userCoords}
